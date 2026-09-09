@@ -1,4 +1,4 @@
-# osTicket Agent API
+# osTicket Agent API 1.0
 
 A small REST plugin for osTicket 1.18. Each credential belongs to one existing agent. Ticket tables must use InnoDB for transactional write locking. Ticket visibility, claiming, replies and status changes use osTicket's own objects and permissions.
 

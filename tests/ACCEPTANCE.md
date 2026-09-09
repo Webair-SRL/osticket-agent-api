@@ -1,4 +1,4 @@
-# Release 0.1.0 acceptance
+# Release 1.0.0 acceptance
 
 Verified on 2026-09-09 using an existing osTicket 1.18.3 installation, Nginx, PHP 8.4 FPM and InnoDB. This was a real HTTPS server test; the local transport tests do not replace it.
 

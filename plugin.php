@@ -2,7 +2,7 @@
 
 return array(
     'id' => 'webair:osticket-agent-api',
-    'version' => '0.1.0',
+    'version' => '1.0.0',
     'name' => 'Agent API',
     'author' => 'WebAir S.r.l.',
     'description' => 'Personal agent API using native ticket visibility, permissions and lifecycle.',
