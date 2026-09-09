@@ -1,0 +1,4 @@
+.env
+*.key
+*-sha256.txt
+credentials*.json
