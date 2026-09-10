@@ -4,7 +4,22 @@
 
 Checked locally on 2026-09-10: 66 transport/contract checks pass, including target validation, native form rejection, unavailable agents, department rejection, permission and revision guards, transfer from another agent, default suppressed alerts, idempotent assignment, changed revision, loss of caller visibility and commit failure. The existing claim/reply guards remain covered. All plugin PHP files pass syntax validation.
 
-**Target-server acceptance is pending.** At this check the deployment SSH connection was unavailable; HTTPS identity and reads still worked. The 1.0 acceptance below does not certify the new endpoint. Before declaring 1.1 operational, deploy the three plugin runtime files without reinstalling, then use the existing controlled acceptance ticket to verify assignment to an eligible agent and back, stale-revision rejection, idempotence, native event attribution, suppressed notifications and the final restored ticket state. Do not use customer tickets for test writes.
+Verified on the real osTicket 1.18.3, Nginx, PHP 8.4.23 FPM and InnoDB installation on 2026-09-10. The three runtime files were backed up and deployed without reinstalling; server SHA-256 hashes match commit `63da1755138ab9e1adad284b1e2036545ff5a304`. The existing internal acceptance ticket was used; no customer ticket was changed.
+
+| Check | Result |
+| --- | --- |
+| Assign a closed ticket | PASS; HTTP 422, no mutation |
+| Assign the current agent with a fresh revision | PASS; `changed: false`, no extra assignment event |
+| Transfer to another eligible agent | PASS; receipt and independent HTTPS read agree |
+| Take over from that agent onto the credential owner | PASS; receipt and independent HTTPS read agree |
+| Reuse the revision from before reassignment | PASS; HTTP 400 |
+| Existing claim/reply on a ticket assigned to someone else | PASS; both return HTTP 422 |
+| Native assignment history | PASS; exactly two assignment events, both attributed to the credential owner; self-assignment recorded as a claim |
+| Public conversation | PASS; all four existing entries preserved, no new reply or note |
+| Assignment alerts | PASS; both transfers requested `notify: false` |
+| Fixture restoration | PASS; native resolved status and original assigned agent restored and reread |
+
+The source-only tests cover additional rejection cases; they are distinct from the live cases above. No email-delivery claim is made. The initial unavailable SSH connection was resolved before deployment and acceptance.
 
 ## Release 1.0.0
 
