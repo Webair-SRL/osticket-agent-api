@@ -29,6 +29,7 @@ class AgentApiPlugin extends Plugin
                 url_get('^statuses$', 'statuses'),
                 url_get('^tickets/(?P<id>\d+)$', 'ticket'),
                 url_post('^tickets/(?P<id>\d+)/claim$', 'claim'),
+                url_post('^tickets/(?P<id>\d+)/assignee$', 'assignee'),
                 url_post('^tickets/(?P<id>\d+)/reply$', 'reply')
             )));
         });

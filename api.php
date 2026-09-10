@@ -112,6 +112,52 @@ class AgentApiController
         return $this->ticket($id);
     }
 
+    function assignee($id)
+    {
+        $body = $this->assignmentPayload(file_get_contents('php://input', false, null, 0, 65537));
+        return $this->changeAssignee($id, $body);
+    }
+
+    private function assignmentPayload($raw)
+    {
+        $body = json_decode($raw, true);
+        if (strlen($raw) > 65536 || !is_array($body)
+            || !is_int($body['staff_id'] ?? null) || $body['staff_id'] < 1
+            || array_diff(array_keys($body), ['staff_id', 'notify'])
+            || (array_key_exists('notify', $body) && !is_bool($body['notify']))) {
+            Http::response(400, json_encode(['error' => 'Expected positive integer staff_id and optional boolean notify']), 'application/json');
+        }
+        return $body;
+    }
+
+    private function changeAssignee($id, array $body)
+    {
+        $ticket = $this->writableTicket($id, Ticket::PERM_ASSIGN, true);
+        $assignee = Staff::lookup($body['staff_id']);
+        if (!$assignee || !$assignee->isActive() || !$assignee->isAvailable()) {
+            Http::response(422, json_encode(['error' => 'Target agent does not exist or is unavailable']), 'application/json');
+        }
+        $previous = (int) $ticket->getStaffId();
+        $changed = $previous !== (int) $assignee->getId();
+        $notify = $changed && ($body['notify'] ?? false);
+        if ($changed) {
+            $errors = [];
+            $form = $ticket->getAssignmentForm(['assignee' => ['s' . $assignee->getId()]], ['target' => 'agents']);
+            if (!$form->isValid() || !$ticket->assign($form, $errors, $notify)) {
+                Http::response(422, json_encode(['error' => 'Native assignment rejected', 'details' => $errors]), 'application/json');
+            }
+        }
+        if (!db_autocommit(true)) {
+            Http::response(500, json_encode(['error' => 'Commit failed; read the ticket before retrying']), 'application/json');
+        }
+        // Reassignment can remove the caller's visibility. Return only the write receipt.
+        $revision = $this->summary($ticket)['revision'];
+        header('ETag: "' . $revision . '"');
+        return json_encode(['ticket_id' => $ticket->getId(), 'previous_staff_id' => $previous,
+            'staff_id' => (int) $ticket->getStaffId(), 'changed' => $changed,
+            'notification_requested' => $notify, 'revision' => $revision]);
+    }
+
     function reply($id)
     {
         $ticket = $this->writableTicket($id, Ticket::PERM_REPLY);
@@ -168,7 +214,7 @@ class AgentApiController
         return $ticket;
     }
 
-    private function writableTicket($id, $permission)
+    private function writableTicket($id, $permission, $allowReassignment = false)
     {
         // Lock before reading the revision. Rejected requests exit without committing.
         db_autocommit(false);
@@ -179,7 +225,7 @@ class AgentApiController
         if (!$ticket->checkStaffPerm($this->staff, $permission) || !$this->staff->isAvailable()) {
             Http::response(403, json_encode(['error' => 'Agent lacks permission or is unavailable']), 'application/json');
         }
-        if (!$ticket->isOpen() || ($ticket->getStaffId() && $ticket->getStaffId() != $this->staff->getId())) {
+        if (!$ticket->isOpen() || (!$allowReassignment && $ticket->getStaffId() && $ticket->getStaffId() != $this->staff->getId())) {
             Http::response(422, json_encode(['error' => 'Ticket closed or assigned to another agent']), 'application/json');
         }
         $revision = $this->summary($ticket)['revision'];

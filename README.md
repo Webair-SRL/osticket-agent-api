@@ -1,8 +1,8 @@
-# osTicket Agent API 1.0
+# osTicket Agent API 1.1
 
-A small REST plugin for osTicket 1.18. Each credential belongs to one existing agent. Ticket tables must use InnoDB for transactional write locking. Ticket visibility, claiming, replies and status changes use osTicket's own objects and permissions.
+A small REST plugin for osTicket 1.18. Each credential belongs to one existing agent. Ticket tables must use InnoDB for transactional write locking. Ticket visibility, assignment, claiming, replies and status changes use osTicket's own objects and permissions.
 
-The plugin does not generate replies, run an AI model or schedule background work. Those decisions belong to the client. It does not change core files or database tables and does not accept a caller-supplied author or assignee.
+The plugin does not generate replies, run an AI model or schedule background work. Those decisions belong to the client. It does not change core files or database tables and does not accept a caller-supplied author.
 
 ## Installation
 
@@ -20,7 +20,7 @@ On the osTicket server, the administrator binds that digest to the verified agen
 php include/plugins/osticket-agent-api/bin/agent-key.php /path/to/osticket username < token-sha256.txt
 ```
 
-The script uses osTicket's Config object. It stores only the digest, one per agent; issuing a new digest revokes the previous credential. Locked or deleted agents cannot authenticate. Unavailable agents can read but cannot take tickets or reply. Existing passwords, browser sessions and two-factor settings remain unchanged; API tokens are separately issued credentials, not a password or MFA login endpoint.
+The script uses osTicket's Config object. It stores only the digest, one per agent; issuing a new digest revokes the previous credential. Locked or deleted agents cannot authenticate. Unavailable agents can read but cannot take, reassign or reply to tickets. Existing passwords, browser sessions and two-factor settings remain unchanged; API tokens are separately issued credentials, not a password or MFA login endpoint.
 
 Do not issue an administrator's token to other agents. Treat a token as access to its owner's helpdesk permissions. Use HTTPS, avoid logging Authorization headers, and keep credentials out of URLs and command-line arguments.
 
@@ -35,9 +35,25 @@ Base path: `/api/agent/v1`. Every request requires `Authorization: Bearer TOKEN`
 | `GET /tickets/{id}` | Ticket, organization, assigned agent, status and text entries with authors and UTC dates. Returns an ETag. |
 | `GET /statuses` | Enabled open and closed statuses. |
 | `POST /tickets/{id}/claim` | Claim an open unassigned ticket for the authenticated agent. |
+| `POST /tickets/{id}/assignee` | Assign or transfer an open ticket to an eligible agent using native assignment permissions. |
 | `POST /tickets/{id}/reply` | Post a plain-text reply as the authenticated agent. |
 
-Both write operations require the current `If-Match` ETag returned by the ticket read. Tickets assigned to another agent cannot be taken over or answered through this API. A reply requires the ticket to be assigned to the authenticated agent first. Claiming also honors the native department assignment rules.
+All write operations require the current `If-Match` ETag returned by the ticket read. `claim` and `reply` still reject tickets assigned to another agent. A reply requires the ticket to be assigned to the authenticated agent first. Claiming and reassignment honor the native department assignment rules.
+
+Assignment JSON (new in plugin 1.1, same `/agent/v1` base path):
+
+```json
+{
+  "staff_id": 7,
+  "notify": false
+}
+```
+
+`staff_id` is the positive integer ID of an existing, active and available agent; use `/identity` for the personal operator when taking over a ticket. The credential owner remains the actor and must have visibility and native `ticket.assign` permission. The native agent assignment form validates the target, and `Ticket::assign()` applies department rules and records the assignment event. Closed tickets, missing/unavailable agents and native rejections cannot be reassigned. The endpoint does not unassign tickets or assign teams. Unknown fields and invalid types are rejected; the request limit is 64 KiB.
+
+`notify` defaults to false for assignment and controls native assignment alerts, without posting a public reply. Self-assignment also suppresses alerts natively. A successful receipt contains `ticket_id`, `previous_staff_id`, `staff_id`, `changed`, `notification_requested` and the new `revision` (also returned as ETag). Assigning the current target with a fresh revision returns `changed: false`, without another assignment event or alert. A transfer can remove the caller’s visibility; the receipt still confirms the operation, while subsequent reads honor the new permissions.
+
+The client decides whether a transfer is authorized by its operator. The API does not schedule or enforce a 48-hour policy. After an uncertain write, reread before deciding whether another action is needed; never blindly retry using the old revision.
 
 Reply JSON:
 
@@ -59,7 +75,7 @@ For hourly polling, read open tickets and changed tickets using `state=all&since
 
 `php tests/run.php` exercises access boundaries and stale-write guards without installing osTicket. Functional acceptance must also run on the real osTicket/PHP/web-server stack, using a controlled ticket for writes. See `tests/ACCEPTANCE.md` for the verified release boundary.
 
-This first release intentionally omits ticket creation/deletion, reassignment to other agents, password login, attachments download, arbitrary field updates and time accounting. It exposes the native helpdesk operations needed by an external operator client. Ticket contents are untrusted input for any automated client.
+This release intentionally omits ticket creation/deletion, team assignment, unassignment, password login, attachments download, arbitrary field updates and time accounting. It exposes the native helpdesk operations needed by an external operator client. Ticket contents are untrusted input for any automated client.
 
 ## Existing alternatives
 

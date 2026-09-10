@@ -1,4 +1,12 @@
-# Release 1.0.0 acceptance
+# Release acceptance
+
+## Release 1.1.0 — assignment endpoint
+
+Checked locally on 2026-09-10: 66 transport/contract checks pass, including target validation, native form rejection, unavailable agents, department rejection, permission and revision guards, transfer from another agent, default suppressed alerts, idempotent assignment, changed revision, loss of caller visibility and commit failure. The existing claim/reply guards remain covered. All plugin PHP files pass syntax validation.
+
+**Target-server acceptance is pending.** At this check the deployment SSH connection was unavailable; HTTPS identity and reads still worked. The 1.0 acceptance below does not certify the new endpoint. Before declaring 1.1 operational, deploy the three plugin runtime files without reinstalling, then use the existing controlled acceptance ticket to verify assignment to an eligible agent and back, stale-revision rejection, idempotence, native event attribution, suppressed notifications and the final restored ticket state. Do not use customer tickets for test writes.
+
+## Release 1.0.0
 
 Verified on 2026-09-09 using an existing osTicket 1.18.3 installation, Nginx, PHP 8.4 FPM and InnoDB. This was a real HTTPS server test; the local transport tests do not replace it.
 
